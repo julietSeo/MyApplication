@@ -45,9 +45,18 @@ android {
     }
 
     buildTypes {
-        release {
+        debug {
+            applicationIdSuffix ".dev"
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+
+            manifestPlaceholders = [applicationLabel: "@string/app_name_dev", applicationPackageName: defaultConfig.applicationId + applicationIdSuffix]
+        }
+        release {
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+
+            manifestPlaceholders = [applicationLabel: "@string/app_name_dev", applicationPackageName: defaultConfig.applicationId + applicationIdSuffix]
         }
     }
     compileOptions {
