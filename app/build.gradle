@@ -41,6 +41,8 @@ android {
         versionCode vCode
         versionName vName
 
+        setProperty("archivesBaseName", "MyApp-v" + versionName)
+
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -48,6 +50,7 @@ android {
         debug {
             applicationIdSuffix ".dev"
             minifyEnabled false
+            debuggable true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
 
             manifestPlaceholders = [applicationLabel: "@string/app_name_dev", applicationPackageName: defaultConfig.applicationId + applicationIdSuffix]
