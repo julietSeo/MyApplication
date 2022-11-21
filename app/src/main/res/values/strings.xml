@@ -1,4 +1,7 @@
 <resources>
     <string name="app_name">Device Configurator</string>
     <string name="app_name_dev">Device Configurator(dev)</string>
+
+    <string name="DisStop">Discovery stopped</string>
+    <string name="BTnotOn">Bluetooth not on</string>
 </resources>
