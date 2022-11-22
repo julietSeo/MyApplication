@@ -4,4 +4,9 @@
 
     <string name="DisStop">Discovery stopped</string>
     <string name="BTnotOn">Bluetooth not on</string>
+    <string name="BTdisable">Device doesn\'t support Bluetooth</string>
+    <string name="BTdeactivate">Bluetooth is deactivated</string>
+
+    <string name="action_discovery_started">주변 블루투스 기기 찾는 중…</string>
+    <string name="action_discovery_ble">주변 BLE 기기 찾는 중…</string>
 </resources>
