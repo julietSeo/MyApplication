@@ -59,7 +59,7 @@ android {
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
 
-            manifestPlaceholders = [applicationLabel: "@string/app_name_dev", applicationPackageName: defaultConfig.applicationId + applicationIdSuffix]
+            manifestPlaceholders = [applicationLabel: "@string/app_name", applicationPackageName: defaultConfig.applicationId + applicationIdSuffix]
         }
     }
     compileOptions {

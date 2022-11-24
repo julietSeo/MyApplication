@@ -5,11 +5,14 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.recyclerview.widget.DividerItemDecoration;
+import androidx.recyclerview.widget.GridLayoutManager;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 import android.Manifest;
-import android.app.ProgressDialog;
+import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothManager;
@@ -18,6 +21,7 @@ import android.bluetooth.le.ScanCallback;
 import android.bluetooth.le.ScanResult;
 import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
@@ -27,11 +31,16 @@ import android.os.FileUtils;
 import android.os.Handler;
 import android.util.Log;
 import android.view.View;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.gdi.myapplication.utils.RecyclerDecoration;
+
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -53,17 +62,25 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     private static final long SCAN_PERIOD = 10000;
 
     private BluetoothAdapter bluetoothAdapter;
+    private BluetoothManager bluetoothManager;
 
     private BluetoothLeScanner bluetoothLeScanner;
     private Handler handler;
     private boolean scanning = false;
 
     private List<String> deviceMap;
-    private List<String> bleMap;
+    private List<BluetoothDevice> bleMap;
+
+    private Set<BluetoothDevice> pairedDevices;
+    private List<String> pairedDeviceList;
+
+    private ListAdapter listAdapter;
+    private RecyclerView recyclerView;
 
 
+    private ProgressBar progressBar;
 
-    private ProgressDialog progressDialog;
+    private int selectDevice;
 
 
     @Override
@@ -75,19 +92,28 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         init();
     }
 
+    @SuppressLint("NotifyDataSetChanged")
     private void initLayout() {
         TextView tv2;
         Button btnFind;
         Button btnPaired;
         Button btnBle;
-        ProgressBar progressBar;
 
         tv2 = findViewById(R.id.textView2);
-        tv2.setVisibility(View.GONE);
 
         btnFind = findViewById(R.id.btn_find);
         btnPaired = findViewById(R.id.btn_paired);
         btnBle = findViewById(R.id.btn_ble);
+
+        listAdapter = new ListAdapter();
+
+        recyclerView = findViewById(R.id.rv_devices);
+        recyclerView.setLayoutManager(new LinearLayoutManager(this));
+        DividerItemDecoration dividerItemDecoration = new DividerItemDecoration(recyclerView.getContext(), new LinearLayoutManager(this).getOrientation());
+        recyclerView.addItemDecoration(dividerItemDecoration);
+        recyclerView.setHasFixedSize(true);
+
+        listAdapter.notifyDataSetChanged();
 
         progressBar = findViewById(R.id.progressBar);
         progressBar.setVisibility(View.GONE);
@@ -106,7 +132,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_DENIED) {
             requestPermissionLaunchers.launch(permissions);
         } else {
-            bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+            bluetoothManager = getSystemService(BluetoothManager.class);
+            bluetoothAdapter = bluetoothManager.getAdapter();
             if (bluetoothAdapter == null) {
                 Toast.makeText(this, getString(R.string.BTdisable), Toast.LENGTH_SHORT).show();
             }
@@ -123,7 +150,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     }
 
     private void discover() {
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
             return;
         }
         if (bluetoothAdapter.isDiscovering()) {
@@ -149,7 +176,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         @Override
         public void onReceive(Context context, Intent intent) {
             BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
-            if (ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
                 return;
             }
 
@@ -165,8 +192,9 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                     break;
                 case BluetoothAdapter.ACTION_DISCOVERY_FINISHED:
                     Toast.makeText(context, "블루투스 기기 찾기 완료!", Toast.LENGTH_LONG).show();
-                    progressDialog.dismiss();
-                    buildDialog(deviceMap);
+                    progressBar.setVisibility(View.GONE);
+
+//                    buildDialog(deviceMap);
                     break;
                 default:
                     Toast.makeText(context, "블루투스 기기 찾기 실패!", Toast.LENGTH_LONG).show();
@@ -180,15 +208,26 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             // stop scanning
             handler.postDelayed(() -> {
 
-                if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
+                if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
                     return;
                 }
 
                 scanning = false;
                 bluetoothLeScanner.stopScan(leScanCallback);
 
-                progressDialog.dismiss();
-                buildDialog(bleMap);
+                progressBar.setVisibility(View.GONE);
+//                buildDialog(bleMap);
+                for(BluetoothDevice device: bleMap) {
+                    Log.d("[device test]", device.toString());
+                    listAdapter.setArrayData(device.getAddress());
+                }
+                listAdapter.setOnItemClickListener((v, pos) -> {
+                    pairingDevice(pos);
+//                    BluetoothDevice device = bleMap.get(pos);
+//                    String address = bleMap.get(pos).getAddress();
+//                    Log.d("[address]", address);
+                });
+                recyclerView.setAdapter(listAdapter);
                 Toast.makeText(this, "Completed!", Toast.LENGTH_LONG).show();
             }, SCAN_PERIOD);
 
@@ -200,20 +239,35 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         }
     }
 
-    private ScanCallback leScanCallback = new ScanCallback() {
+    private final ScanCallback leScanCallback = new ScanCallback() {
         @Override
         public void onScanResult(int callbackType, ScanResult result) {
             super.onScanResult(callbackType, result);
-            if (ActivityCompat.checkSelfPermission(getBaseContext(), Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+            if (ContextCompat.checkSelfPermission(getBaseContext(), Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
 
                 return;
             }
             Log.d("[bleScan]", "==>" + result.getDevice().getName());
-            if(!bleMap.contains(result.getDevice().getAddress())) {
-                bleMap.add(result.getDevice().getAddress());
+            if(!bleMap.contains(result.getDevice())) {
+                bleMap.add(result.getDevice());
             }
         }
     };
+
+    private void pairingDevice(int selected) {
+        BluetoothDevice device = bleMap.get(selected);
+
+        try {
+            Method method = device.getClass().getMethod("createBond", (Class<?>[]) null);
+            method.invoke(device, (Object[]) null);
+            selectDevice = selected;
+            Log.d("selectedDevice", device.getAddress());
+
+//            pairedDeviceList.add(device.getAddress());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 
     /**
      * Request Bluetooth Enabled
@@ -266,43 +320,39 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         unregisterReceiver(receiver);
     }
 
+
     @Override
     public void onClick(View view) {
         if(view.getId() == R.id.btn_find) {
-            if (ActivityCompat.checkSelfPermission(view.getContext(), Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
+            if (ContextCompat.checkSelfPermission(view.getContext(), Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
                 return;
             }
             deviceMap = new ArrayList<>();
-            progressDialog = new ProgressDialog(this);
-            progressDialog.setProgressStyle(ProgressDialog.STYLE_SPINNER);
-            progressDialog.setMessage(getString(R.string.action_discovery_started));
 
             discover();
 
-            progressDialog.show();
+            progressBar.setVisibility(View.VISIBLE);
         } else if(view.getId() == R.id.btn_ble) {
             bleMap = new ArrayList<>();
-            progressDialog = new ProgressDialog(this);
-            progressDialog.setProgressStyle(ProgressDialog.STYLE_SPINNER);
-            progressDialog.setMessage(getString(R.string.action_discovery_ble));
 
             scan();
 
-            progressDialog.show();
+            progressBar.setVisibility(View.VISIBLE);
         } else {
-            Set<BluetoothDevice> pairedDevices = bluetoothAdapter.getBondedDevices();
+            pairedDevices = bluetoothAdapter.getBondedDevices();
 
             if (pairedDevices.size() > 0) {
 
-                List<String> deviceList = new ArrayList<>();
+                pairedDeviceList = new ArrayList<>();
 
                 for (BluetoothDevice device : pairedDevices) {
                     String deviceName = device.getName(); //or device.getAddress();
-                    deviceList.add(deviceName);
+                    pairedDeviceList.add(deviceName);
+                    pairedDeviceList.add(device.getAddress());
                     Log.d("[deviceName]", deviceName);
                 }
 
-                buildDialog(deviceList);
+                buildDialog(pairedDeviceList);
 
             }
         }
